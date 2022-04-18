@@ -98,7 +98,7 @@ git pull
 Make changes locally, save. And then add, commit and push
 
 ```bash
-git add .
+git add [file-to-add]
 git commit -m "update message"
 git push
 ```
