@@ -94,5 +94,5 @@ nx.draw(
     node_size=100,
     font_size=8,
 )
-fig_path = path.join(FIGURES_PATH, "graph.pdf")
+fig_path = path.join(FIGURES_PATH, "network_graph.pdf")
 plt.savefig(fig_path)

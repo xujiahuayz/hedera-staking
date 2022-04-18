@@ -67,7 +67,7 @@ class Nodes:
         )
         self.edge_staking = dict(degN)
 
-    def distribute_rewards(self, rn):
+    def distribute_rewards(self, rn: float):
         # balances get updated based on the rewards
         self.reward_distribute_node = {}
         Total_edge_staked = sum(self.edge_staking.values())
