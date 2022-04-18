@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 
 import networkx as nx
-from staking.agents import HederaSystem, Tx_fee, HBar
+from staking.agents import Tx_fee, HBar
+from staking.env import HederaSystem
 
 
 T = HederaSystem()
@@ -19,13 +20,10 @@ for t in range(1, 50):
     Treasury_Account_t.append(T.hbar.treasury)
 
 
-# %%
 plt.plot(Reward_Account_t)
 
-# %%
 plt.plot(Treasury_Account_t)
 
-# %%
 Reward_node = {}
 for node in Nodes_Balance_t[1].keys():
     for t in Nodes_Balance_t.keys():
@@ -33,7 +31,6 @@ for node in Nodes_Balance_t[1].keys():
     plt.plot(Reward_node[node], label=node)
 plt.legend()
 
-# %%
 Reward_staker = {}
 for staker in Stakers_Balance_t[1].keys():
     for t in Stakers_Balance_t.keys():
@@ -43,7 +40,6 @@ for staker in Stakers_Balance_t[1].keys():
     plt.plot(Reward_staker[staker], label=staker)
 # plt.legend()
 
-# %%
 ### Test amount of Tx_fee
 
 fee_t = []

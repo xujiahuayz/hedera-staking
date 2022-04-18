@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 import math
 import numpy.random as rnd
@@ -5,13 +6,41 @@ import numpy.random as rnd
 import networkx as nx
 from networkx.algorithms import bipartite
 
+from staking.constants import RUNTIME_THRESHOLD
 
+# from dataclasses import dataclass, field
+
+
+class ValidatingNode:
+    """A validating node, characterized by its quality, that receive stakes"""
+
+    def __init__(self, quality: float = 0.9):
+        if not 0 <= quality <= 1:
+            raise ValueError("`quality` must be between 0 and 1")
+        self.quality = quality
+        self.performance_history = {}
+
+    def generate_daily_performance(self, day=int):
+        """randomize everyday's runtime based on the node's `quality`"""
+        runtime = rnd.triangular(left=0, mode=self.quality, right=1)
+        self.performance_history.update(
+            {
+                f"day_{day}": {
+                    "day": day,
+                    "runtime": runtime,
+                    "pass_threshold": runtime >= RUNTIME_THRESHOLD,
+                }
+            }
+        )
+
+
+@dataclass
 class Nodes:
-    def __init__(self, num_stakers: float, num_nodes: float):
-        # Initialise balances
-        self.num_nodes = num_nodes
-        self.num_stakers = num_stakers
+    num_stakers: int
+    num_nodes: int
 
+    def _post_init_(self):
+        # Initialise balances
         self.agents_node = list(range(10000, 10000 + self.num_nodes))
         self.balance_nodes_intial = np.random.pareto(
             1, self.num_nodes
@@ -21,7 +50,7 @@ class Nodes:
         )
 
     def update_status(self, s_n_network):
-        # participant level and total staked from staker
+        """participant level and total staked from staker"""
         self.parti_level = [
             np.random.normal(0.9, 0.05, self.num_nodes)
         ]  # first assume the particitation level is normal distribution(mean=0.9, std=0.05)
@@ -190,38 +219,3 @@ class HBar:
 
     def topup(self):
         return 100
-
-
-class HederaSystem:
-    def __init__(self):
-
-        self.hbar = HBar(
-            pra=0,
-            prb=0,
-            prc=5,
-            prm=10,
-            ta0=100,
-            ra0=10,
-            alpha=0.1,
-            beta=0.5,
-            epsilon=0.05,
-            parameter_l=0.1,
-        )  # add all parameters.
-
-        self.stakers = Stakers(40, 10)  # Add initialisation num_staker=40, num_node=10
-
-        self.nodes = Nodes(40, 10)
-
-    def iterate(self):
-
-        self.S_N_network = self.stakers.network_stakes(
-            num_staking_nodes=1
-        )  # each staker only select one node
-
-        self.nodes.update_status(self.S_N_network)
-
-        self.hbar.iterate()
-
-        self.stakers.distribute_rewards(self.hbar.reward_to_stakers)
-
-        self.nodes.distribute_rewards(self.hbar.reward_to_nodes)
