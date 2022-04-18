@@ -16,46 +16,50 @@ cd hedera-staking
 
 ### Give execute permission to your script and then run `setup_repo.sh`
 
-```
+```bash
 chmod +x setup_repo.sh
 ./setup_repo.sh
 ```
 
 or follow the step-by-step instructions below
 
-### Create a python virtual environment
+---
+
+#### Create a python virtual environment
 
 - iOS
 
-```zsh
+```bash
 python3 -m venv venv
 ```
 
 - Windows
 
-```
+```bash
 python -m venv venv
 ```
 
-### Activate the virtual environment
+#### Activate the virtual environment
 
 - iOS
 
-```zsh
+```bash
 . venv/bin/activate
 ```
 
 - Windows (in Command Prompt, NOT Powershell)
 
-```zsh
+```bash
 venv\Scripts\activate.bat
 ```
 
-## Install the project in editable mode
+#### Install the project in editable mode
 
-```
+```bash
 pip install -e ".[dev]"
 ```
+
+---
 
 ## Git Large File Storage (Git LFS)
 
@@ -63,17 +67,17 @@ All files in [`data/`](data/) are stored with `lfs`.
 
 To initialize Git LFS:
 
-```
+```bash
 git lfs install
 ```
 
-```
+```bash
 git lfs track data/**/*
 ```
 
 To pull data files, use
 
-```
+```bash
 git lfs pull
 ```
 
@@ -81,13 +85,13 @@ git lfs pull
 
 Always pull latest code first
 
-```zsh
+```bash
 git pull
 ```
 
 Make changes locally, save. And then add, commit and push
 
-```zsh
+```bash
 git add .
 git commit -m "update message"
 git push
