@@ -20,7 +20,7 @@ class ValidatingNode:
         self.quality = quality
         self.performance_history = {}
 
-    def generate_daily_performance(self, day=int):
+    def generate_daily_performance(self, day: int):
         """randomize everyday's runtime based on the node's `quality` at a given `day`"""
         runtime = rnd.triangular(left=0, mode=self.quality, right=1)
         self.performance_history.update(
