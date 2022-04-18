@@ -3,13 +3,13 @@
 Clone this repository
 
 ```bash
-git clone https://github.com/xujiahuayz/hedera_staking.git
+git clone https://github.com/xujiahuayz/hedera-staking.git
 ```
 
 Navigate to the directory of the cloned repo
 
 ```bash
-cd hedera_staking
+cd hedera-staking
 ```
 
 ## Set up the repo
