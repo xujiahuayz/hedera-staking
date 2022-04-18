@@ -21,7 +21,7 @@ class ValidatingNode:
         self.performance_history = {}
 
     def generate_daily_performance(self, day=int):
-        """randomize everyday's runtime based on the node's `quality`"""
+        """randomize everyday's runtime based on the node's `quality` at a given `day`"""
         runtime = rnd.triangular(left=0, mode=self.quality, right=1)
         self.performance_history.update(
             {
@@ -39,7 +39,7 @@ class Nodes:
     num_stakers: int
     num_nodes: int
 
-    def _post_init_(self):
+    def __post_init__(self):
         # Initialise balances
         self.agents_node = list(range(10000, 10000 + self.num_nodes))
         self.balance_nodes_intial = np.random.pareto(
@@ -96,7 +96,7 @@ class Stakers:
         self.num_nodes = num_nodes
         self.agents_node = list(range(10000, 10000 + self.num_nodes))
 
-    def network_stakes(self, num_staking_nodes):
+    def network_stakes(self, num_staking_nodes: int) -> nx.Graph:
         # stakers make a decision on whom they want to stake
 
         self.staking_network = nx.Graph()
@@ -202,7 +202,7 @@ class HBar:
             # Money is not sufficient in the reward account
             print("FAIL", self.time)
             # Triggers top-up
-            self.reward += self.topup.flow_fund_to_reward
+            self.reward += self.topup()
 
         # From equation 11
         self.reward_to_stakers = (1 - self.beta) * (reward_t - self.epsilon)

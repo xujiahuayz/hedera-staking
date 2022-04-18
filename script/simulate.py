@@ -1,9 +1,10 @@
 import matplotlib.pyplot as plt
-
+from os import path
 import networkx as nx
 from staking.agents import Tx_fee, HBar
 from staking.env import HederaSystem
 
+from staking.constants import FIGURES_PATH
 
 T = HederaSystem()
 
@@ -70,7 +71,6 @@ for t in range(1, 50):
 
 plt.plot(reward_t)
 
-# %%
 ###Test staking network
 
 sn_network = T.S_N_network
@@ -94,3 +94,5 @@ nx.draw(
     node_size=100,
     font_size=8,
 )
+fig_path = path.join(FIGURES_PATH, "graph.pdf")
+plt.savefig(fig_path)
