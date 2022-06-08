@@ -114,8 +114,6 @@ class Stakers:
                 )  # stakers stake out all their balance
         return self.staking_network
 
-    ##def update_stakes(self): #update the selecting and amount of stakeing
-
     def distribute_rewards(self, rs):
         self.reward_distribute_staker = {}
         # balances get updated based on the rewards

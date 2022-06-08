@@ -63,6 +63,14 @@ pip install -e ".[dev]"
 
 ## Run scripts
 
+Fetch balances data for the first time:
+
+```bash
+python script/fetch-balances.py
+```
+
+This only needs to be run once, and the data will be saved in [`data/`](data/) folder. run `git lfs pull` to get the data.
+
 ```bash
 python script/simulate.py
 ```
