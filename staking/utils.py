@@ -28,6 +28,9 @@ def fetch_data(
         response_list.extend(response[q])
         query = response["links"]["next"]
 
+        if query is None:
+            break
+
         logging.info(f"No.{i}===={query}")
 
     return response_list

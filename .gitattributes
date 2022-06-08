@@ -1,1 +1,2 @@
 data/balances.json filter=lfs diff=lfs merge=lfs -text
+data/reward_transactions.json filter=lfs diff=lfs merge=lfs -text
