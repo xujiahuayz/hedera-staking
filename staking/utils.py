@@ -19,7 +19,7 @@ def fetch_data(
     query = f"/{suburl}/{q}?{'&'.join(args)}"
     response_list = []
 
-    for i in range(5_000):
+    for i in range(100_000):
         request_url = rooturl + query
         r = requests.get(request_url)
 
@@ -31,6 +31,8 @@ def fetch_data(
         if query is None:
             break
 
-        logging.info(f"No.{i}===={query}")
+        # log message every 10 queries
+        if i % 10 == 0:
+            logging.info(f"No.{i}===={query}")
 
     return response_list
