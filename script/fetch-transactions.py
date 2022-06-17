@@ -6,7 +6,7 @@ if __name__ == "__main__":
         order="asc",
         file_name="transactions",
         q="transactions",
-        number_iterations=4,
+        number_iterations=50,
     )
 
 # INFO:root:No.0====/api/v1/transactions?limit=100&order=asc&
