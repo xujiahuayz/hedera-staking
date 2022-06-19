@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def fetch_save_data(
-    gt_lt: list[float] = [1500000000, 2000000000],
+    gt_lt=[1500000000, 2000000000],
     limit: int = 100,
     file_name: str = "transactions",
     q: str = "transactions",
