@@ -1,16 +1,13 @@
+from datetime import datetime
 from functools import partial
-from genericpath import exists
 from glob import glob
-import json
 import multiprocessing
-import requests
 import logging
-import gzip
 import re
-from os import path, remove, rename
+from os import path, rename
 
 from staking.constants import DATA_PATH
-from staking.utils import fetch_data, save_data
+from staking.utils import save_data
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,6 +33,9 @@ def fetch_save_data(
     greater_than = gt_lt[0]
     less_than = gt_lt[1]
 
+    default_file_name = file_name + str(greater_than) + "temp"
+    default_file = path.join(DATA_PATH, f"{default_file_name}.jsonl.gz")
+
     if individual_tx_files:
         file_suffixes = [
             float(re.split(pattern="-", string=f)[-2]) for f in individual_tx_files
@@ -49,14 +49,11 @@ def fetch_save_data(
 
     query = f"/{suburl}/{q}?limit={limit}&order=asc&{counter_field_url}=lt:{less_than}&{counter_field_url}=gt:{greater_than}"
 
-    logging.info(f"start querying {query}")
-
-    default_file_name = file_name + str(greater_than)
-    default_file = path.join(DATA_PATH, f"{default_file_name}.jsonl.gz")
+    logging.info(f"between {greater_than} and {less_than} start querying {query}")
 
     for i in range(number_iterations):
 
-        query = save_data(
+        next_query = save_data(
             file_name=default_file_name,
             q=q,
             suburl=suburl,
@@ -64,25 +61,42 @@ def fetch_save_data(
             n_pages=1_000,
             order="asc",
             limit=limit,
+            query=query,
         )
 
-        if query:
-            file_suffix = query.split(":")[1]
+        if next_query:
+            query = next_query
+            file_suffix = next_query.split("gt:")[1]
             rename(
                 default_file,
                 path.join(DATA_PATH, f"{file_name}-{file_suffix}-.jsonl.gz"),
             )
-            logging.info(f"% No.{i}===={file_suffix}")
+            logging.info(
+                f"between {greater_than} and {less_than} No.{i}===={file_suffix}"
+            )
 
-        if not query:
+        if not next_query:
             break
 
 
-# 01.01 of 2019, 2020, 2021, 2022, 2023
-break_points = [1546300800.0, 1577836800.0, 1609459200.0, 1640995200.0, 1672531200.0]
+break_points = [
+    datetime(2019, 1, 1),
+    datetime(2020, 4, 1),
+    datetime(2020, 7, 1),
+    datetime(2020, 10, 1),
+    datetime(2021, 1, 1),
+    datetime(2021, 4, 1),
+    datetime(2021, 7, 1),
+    datetime(2021, 10, 1),
+    datetime(2022, 1, 1),
+    datetime(2022, 4, 1),
+    datetime(2022, 7, 1),
+]
+
 
 gt_lt_list = [
-    [break_points[i], break_points[i + 1]] for i in range(0, len(break_points) - 1)
+    [break_points[i].timestamp(), break_points[i + 1].timestamp()]
+    for i in range(0, len(break_points) - 1)
 ]
 
 if __name__ == "__main__":
@@ -95,7 +109,7 @@ if __name__ == "__main__":
             q="transactions",
             suburl="api/v1",
             rooturl="https://mainnet-public.mirrornode.hedera.com",
-            number_iterations=2,
+            number_iterations=1_000,
             counter_field_url="timestamp",
         ),
         iterable=gt_lt_list,

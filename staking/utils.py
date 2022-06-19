@@ -2,6 +2,7 @@ from genericpath import exists
 from glob import glob
 import json
 import time
+from typing import Optional
 import requests
 import logging
 import gzip
@@ -19,6 +20,7 @@ def save_data(
     suburl: str = "api/v1",
     rooturl: str = "https://mainnet-public.mirrornode.hedera.com",
     n_pages: int = 1_000,
+    query: Optional[str] = None,
     **kwargs,
 ):
 
@@ -31,10 +33,11 @@ def save_data(
             query = text_file.readline()
         remove(breakpoint_file)
     else:
-        args = []
-        for key, value in kwargs.items():
-            args.append(f"{key}={value}")
-        query = f"/{suburl}/{q}?{'&'.join(args)}"
+        if not query:
+            args = []
+            for key, value in kwargs.items():
+                args.append(f"{key}={value}")
+            query = f"/{suburl}/{q}?{'&'.join(args)}"
 
     with gzip.open(default_file, "at") as f:
 
@@ -64,6 +67,7 @@ def save_data(
                 f.write(json.dumps(tx) + "\n")
 
             query = response["links"]["next"]
+            # logging.info(f"page {j} ==== {query}")
 
             # if query is None or ''
             if not query:
