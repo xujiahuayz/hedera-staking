@@ -1,13 +1,11 @@
 from genericpath import exists
-from glob import glob
 import json
 import time
 from typing import Optional
 import requests
 import logging
 import gzip
-import re
-from os import path, remove, rename
+from os import path, remove
 
 from staking.constants import DATA_PATH
 

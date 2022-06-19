@@ -42,10 +42,7 @@ def fetch_save_data(
         ]
         file_suffix_inscope = [f for f in file_suffixes if greater_than < f < less_than]
         if file_suffix_inscope:
-            file_suffix = file_suffixes[0]
-            greater_than = file_suffix
-        else:
-            tx = {}
+            greater_than = file_suffixes[0]
 
     query = f"/{suburl}/{q}?limit={limit}&order=asc&{counter_field_url}=lt:{less_than}&{counter_field_url}=gt:{greater_than}"
 
@@ -74,8 +71,7 @@ def fetch_save_data(
             logging.info(
                 f"between {greater_than} and {less_than} No.{i}===={file_suffix}"
             )
-
-        if not next_query:
+        else:
             break
 
 
