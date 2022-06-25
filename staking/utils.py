@@ -1,11 +1,13 @@
 from genericpath import exists
+from glob import glob
 import json
+import re
 import time
 from typing import Optional
 import requests
 import logging
 import gzip
-from os import path, remove
+from os import path, remove, rename
 
 from staking.constants import DATA_PATH
 
@@ -74,34 +76,100 @@ def save_data(
     return query
 
 
-def fetch_data(
-    *args,
-    q: str = "balances",
+def fetch_save_data(
+    gt_lt=[1500000000, 2000000000],
+    limit: int = 100,
+    file_name: str = "transactions",
+    q: str = "transactions",
     suburl: str = "api/v1",
     rooturl: str = "https://mainnet-public.mirrornode.hedera.com",
-) -> list:
+    number_iterations: int = 2,
+    counter_field_url: str = "timestamp",
+):
     """
     get data from hedera mirror node
-    fetch balances data by default
+    run save_data under the hood with ascending ordering
     """
 
-    query = f"/{suburl}/{q}?{'&'.join(args)}"
-    response_list = []
+    individual_tx_files = sorted(
+        glob(path.join(DATA_PATH, f"{file_name}-*.jsonl.gz")), reverse=True
+    )
 
-    for i in range(100_000):
-        request_url = rooturl + query
-        r = requests.get(request_url)
+    greater_than = gt_lt[0]
+    less_than = gt_lt[1]
 
-        response = json.loads(r.text)
+    default_file_name = file_name + str(greater_than) + "temp"
+    default_file = path.join(DATA_PATH, f"{default_file_name}.jsonl.gz")
 
-        response_list.extend(response[q])
-        query = response["links"]["next"]
+    if individual_tx_files:
+        file_suffixes = [
+            float(re.split(pattern="-", string=f)[-2]) for f in individual_tx_files
+        ]
+        file_suffix_inscope = [
+            f for f in file_suffixes if float(greater_than) < f < float(less_than)
+        ]
+        if file_suffix_inscope:
+            greater_than = file_suffixes[0]
 
-        if query is None:
+    query = f"/{suburl}/{q}?limit={limit}&order=asc&{counter_field_url}=lt:{less_than}&{counter_field_url}=gt:{greater_than}"
+
+    logging.info(f"between {greater_than} and {less_than} start querying {query}")
+
+    for i in range(number_iterations):
+
+        next_query = save_data(
+            file_name=default_file_name,
+            q=q,
+            suburl=suburl,
+            rooturl=rooturl,
+            n_pages=1_000,
+            order="asc",
+            limit=limit,
+            query=query,
+        )
+
+        if next_query:
+            query = next_query
+            file_suffix = next_query.split("gt:")[1]
+            rename(
+                default_file,
+                path.join(DATA_PATH, f"{file_name}-{file_suffix}-.jsonl.gz"),
+            )
+            logging.info(
+                f"between {greater_than} and {less_than} No.{i}===={file_suffix}"
+            )
+        else:
             break
 
-        # log message every 100 queries
-        if i % 100 == 0:
-            logging.info(f"No.{i}===={query}")
 
-    return response_list
+# def fetch_data(
+#     *args,
+#     q: str = "balances",
+#     suburl: str = "api/v1",
+#     rooturl: str = "https://mainnet-public.mirrornode.hedera.com",
+# ) -> list:
+#     """
+#     get data from hedera mirror node
+#     fetch balances data by default
+#     """
+
+#     query = f"/{suburl}/{q}?{'&'.join(args)}"
+#     response_list = []
+
+#     for i in range(100_000):
+#         request_url = rooturl + query
+#         r = requests.get(request_url)
+
+#         response = json.loads(r.text)
+
+#         response_list.extend(response[q])
+#         query = response["links"]["next"]
+
+#         if query is None:
+#             break
+
+#         # log message every 100 queries
+#         if i % 100 == 0:
+#             logging.info(f"No.{i}===={query}")
+
+#     return response_list
