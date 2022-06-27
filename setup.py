@@ -15,4 +15,7 @@ setup(
         "openpyxl",
     ],
     extras_require={"dev": ["pylint", "black"]},
+    entry_points={
+        "console_scripts": ["staking=staking.cli:run"],
+    },
 )
