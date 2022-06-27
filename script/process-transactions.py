@@ -7,17 +7,18 @@ from staking.constants import DATA_PATH
 
 if __name__ == "__main__":
 
+    # identify all the files in the data folder that follows the format "transactions-*.jsonl.gz"
     individual_tx_files = sorted(
-        glob(path.join(DATA_PATH, "transactions-*.jsonl.gz")), reverse=True
+        glob(path.join(DATA_PATH, "transactions-*.jsonl.gz")), reverse=False
     )
     transactions = []
 
-    for file in individual_tx_files:
+    # iterate through each file
+    for file in individual_tx_files[:2]:
         with gzip.open(file) as f:
+
+            # iterate through each line
             for j, v in enumerate(f):
-                transactions.append(json.loads(v))
+                transactions.append(json.loads(v)["max_fee"])
                 if j % 100 == 0:
                     print(j)
-
-
-# INFO:root:No.0====/api/v1/transactions?limit=100&order=asc&timestamp=gt:1568412964.375367001
