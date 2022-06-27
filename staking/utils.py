@@ -108,8 +108,9 @@ def fetch_save_data(
         file_suffix_inscope = [
             f for f in file_suffixes if float(greater_than) < f < float(less_than)
         ]
+        # print(file_suffix_inscope[:10])
         if file_suffix_inscope:
-            greater_than = file_suffixes[0]
+            greater_than = file_suffix_inscope[0]
 
     query = f"/{suburl}/{q}?limit={limit}&order=asc&{counter_field_url}=lt:{less_than}&{counter_field_url}=gt:{greater_than}"
 
