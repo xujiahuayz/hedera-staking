@@ -63,21 +63,33 @@ for file in individual_tx_files:
     numfile -= 1
     print("residue file", numfile)
 
-#output the results    
+
 TimeList = Tx_num.keys()
 
-with open('./Output/Tx_num_treasuryfee.csv','w') as file_T:    
-    file_T.write('Day'+','+'Tx_num'+','+'Treasury_fee'+'\n') 
+with open("./Output/Tx_num_treasuryfee.csv", "w") as file_T:
+    file_T.write("Day" + "," + "Tx_num" + "," + "Treasury_fee" + "\n")
 
     for eachday in TimeList:
-        file_T.write(str(eachday) +','+ str(Tx_num[eachday]) +','+ str(Treasury_fee[eachday]) +'\n')
+        file_T.write(
+            str(eachday)
+            + ","
+            + str(Tx_num[eachday])
+            + ","
+            + str(Treasury_fee[eachday])
+            + "\n"
+        )
 
-        
-        
-with open('./Output/Tx_fee_node.csv','w') as file_T_node:
-    file_T_node.write('Day' +','+ 'Node_account' +','+ 'sum_Txfee'+ '\n')
-    
+
+with open("./Output/Tx_fee_node.csv", "w") as file_T_node:
+    file_T_node.write("Day" + "," + "Node_account" + "," + "sum_Txfee" + "\n")
+
     for eachday in TimeList:
         for eachnode in Node_fee_T[eachday].keys():
-            file_T_node.write(str(eachday)+','+str(eachnode) +','+str(Node_fee_T[eachday][eachnode])+'\n')
-    
+            file_T_node.write(
+                str(eachday)
+                + ","
+                + str(eachnode)
+                + ","
+                + str(Node_fee_T[eachday][eachnode])
+                + "\n"
+            )
