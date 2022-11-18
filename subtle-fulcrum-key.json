@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "subtle-fulcrum-300415",
+  "private_key_id": "f2d6c3986a67f3a44d3f6e6c5c9aa4446881f66f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5agIH8e6JtsbD\nlhMecNdJcwzuE/PS48sr04DJnjINAzmHnpgc6M5mgi9s+EPzdXPRmIhxwk8xVeGU\n4ZwFkulQL5uDeu9KufSjV7g4fQkuqxtxAKR2Xvi7HiDUG1N3WAaWDKqdEOrdy6ui\nMiS/CelHTxxo3J073rV+MpVHo/z6C+LZ3grWdiPBqHXoDfy2CVqdTC0iVyFO11Tl\nnfDalbsb8f7LRvTIJ/RTVc9p5N1y6morJYYvnnWxR446fbjiOFUHjHERbVSILZUR\nhVlAu/NfXljsKhla2ziBOdHG8ObNoKCmyUPOf9b7X/wxW2z8WeVA2Va6vHPFk+Ao\nK4ZxTxQ5AgMBAAECggEANqy9Y5ViZ2an7xXqll/lBCoyhmQI0sfMaiSIxitpi+/G\n/6hzJ5c5Af5iuMnu07RvTj+iAJWxX5V5Gzt6FCSxuy0GuTs/o/P44U/lKXcphYL8\naRKs7KDtzNPCD3ntX3RsIMQkbYOHFpdQCdiqgFEOYrI/6OYhUX3HXCrTXVhMqXjl\n8NkTMNUpjYAux7TnflwqOrQ0d79wVhsO5t70jkdk5iHlzKJVAIoMLNAkFxJKZBrr\nvYn6YYIFg8/6g6fMyJLXoGb0Y18HURmfuUsgXrfVicMtttCQA2N2s1XtWsSV2OUV\n9EmuAVE0IAebECF1D4HXaPmhtle8EpFoHGFLtl3FxwKBgQDrW+JTnaVCBO2CCJUo\nLn7AIUXIC7O7xcN6T6vJGDOPzoTdfxPvDjxijD8j4G0ko5ch6Vi7uTZWLDTDq0qy\nfHvx/ADs+cXawX3EtZFZ2MeXS+aisEFMJV2cULWfixrUrVR8+LOOGAd8e/ggjhz6\nJVAuLENEADYS5m2DEC3D1Tb1awKBgQDJrMwL+dD9QVO8pGA1XcW3Q8e45QRmxE4e\nm9RRZ2sxx53x+te5VzEIVM+x/fD2mBUOxfdrgpGLn0F0iIFriAexJrucb4Osgmui\nnoiC6/0gKOQwlMBr0cvDxgEVgx/XJTFnHvH/1A+DTRrQS5prEIsalfXD4mKUh6zc\ns9PES+sh6wKBgQDOxc3kWia7BqtHR5ULVTXkRBcTdjx0pn1jcqVgqdN67xxJoIB5\n0I76oW5DbcNVoieAEorzefej43iDw3R/tOALq7OAfrv1wXJmJIJLZimL4ZIBsknb\nxSQl1b6LKWHsIU+N782H89J36k4HA/OvTKLRve9myay4FBt4PvmGCEcdewKBgC8Y\nMu35AFyjjLJYkD7mDu2k3lbG5Cg7XyK2sPXxeI6/VprTQNz/B2wyoe2mp0ZubTxt\n7kEk1GgOYHKeDdrWgTVVHiqBv/Xg3tGyw54PDaUc52yQz/5dl3+4FTi4zg6nmMnD\n6C8djiHTN5e8j+rAijtDGYkMrIiSxkMjmygTsmzRAoGAKkJ/bIXzdHQd+ClnNu80\n6+d1tsGTQ7B9K8/ytVigfedZOXjf3QotTwGob8DfcGvjqENdj4JNlvkEMrUdlFnr\nYZBapzSZOb5oJrfXOkGc5xNlTDrzF7pNweIlKgz+Z9JZdn2sKeEdes/i7IC04Dja\nHD0urbnWhM7v7JMoGOrA+/w=\n-----END PRIVATE KEY-----\n",
+  "client_email": "digitalfinance@subtle-fulcrum-300415.iam.gserviceaccount.com",
+  "client_id": "116711061520580022164",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/digitalfinance%40subtle-fulcrum-300415.iam.gserviceaccount.com"
+}
