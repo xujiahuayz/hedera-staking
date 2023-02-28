@@ -75,7 +75,7 @@ This only needs to be run once, and the data will be saved in [`data/`](data/) f
 python script/simulate.py
 ```
 
-# Use CLI to fetch data
+### Use CLI to fetch data
 
 ```bash
 staking fetch-transactions --timestamp-gt 1601508435.679251005 --timestamp-lt 1609459200.0
