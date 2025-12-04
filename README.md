@@ -27,7 +27,7 @@ or follow the step-by-step instructions below between the two horizontal rules:
 
 #### Create a python virtual environment
 
-- iOS
+- MacOS
 
 ```bash
 python3 -m venv venv
