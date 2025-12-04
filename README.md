@@ -41,7 +41,7 @@ python -m venv venv
 
 #### Activate the virtual environment
 
-- iOS
+- MacOS
 
 ```bash
 . venv/bin/activate
