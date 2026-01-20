@@ -1,9 +1,6 @@
-from typing import Any
-
-
 from dataclasses import dataclass
-import numpy as np
 import math
+import numpy as np
 import numpy.random as rnd
 
 import networkx as nx
@@ -136,6 +133,7 @@ class Stakers:
 
         self.num_nodes = num_nodes
         self.agents_node = list(range(10000, 10000 + self.num_nodes))
+        self.staking_network = nx.Graph()
 
     def network_stakes(self, chosen_node: int = None) -> nx.Graph:
         """Stakers can make a decision on whom they want to stake, else they choose a random node"""
@@ -232,9 +230,8 @@ class Tx_fee:
         self.fee_tx = fee_tx
 
     def calculate_sum_fee(self):
-
-        self.sum_fee = self.num_tx * self.fee_tx
-        return self.sum_fee
+        sum_fee = self.num_tx * self.fee_tx
+        return sum_fee
 
 
 class HBar:
@@ -256,32 +253,34 @@ class HBar:
         self.param_reward_m = prm
         self.time = 0
         self.parameter_l = parameter_l  ## ? when treasure transfer to reward
+        self.reward_to_stakers = 0.0
+        self.reward_to_nodes = 0.0
 
     def iterate(self):
         # This function is called each time-step to update the internal variables of the system
         print("time:", self.time)
-        self.transaction_fees = Tx_fee(t=self.time).calculate_sum_fee()
+        transaction_fees = Tx_fee(t=self.time).calculate_sum_fee()
         # print(self.transaction_fees)
 
         # Equation 1
-        self.flow_fees_to_treasury = self.alpha * self.transaction_fees
+        flow_fees_to_treasury = self.alpha * transaction_fees
 
         # Equation 4
-        self.flow_fees_to_reward = (1 - self.alpha) * self.transaction_fees
+        flow_fees_to_reward = (1 - self.alpha) * transaction_fees
 
         # Equation 2
         if rnd.random() < self.parameter_l:
-            self.flow_treasury_to_reward = rnd.uniform(
-                0, self.treasury + self.flow_fees_to_treasury
+            flow_treasury_to_reward = rnd.uniform(
+                0, self.treasury + flow_fees_to_treasury
             )
         else:
-            self.flow_treasury_to_reward = 0
+            flow_treasury_to_reward = 0
 
         # Equation 3
-        self.treasury += self.flow_fees_to_treasury - self.flow_treasury_to_reward
+        self.treasury += flow_fees_to_treasury - flow_treasury_to_reward
 
         # Equation 5
-        self.reward += self.flow_fees_to_reward + self.flow_treasury_to_reward
+        self.reward += flow_fees_to_reward + flow_treasury_to_reward
 
         self.time += 1
 
