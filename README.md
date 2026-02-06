@@ -138,3 +138,18 @@ The most important rules above all:
 1. Do not upload big files > 100 MB.
 1. Do not upload log files.
 1. Do not declare constant variables in the MIDDLE of a function
+
+
+---
+
+## Hedera Staking environment setup
+
+The Hedera account environment is stored at `staking/accounts.py`.
+
+The 'managers' of the Hedera staking processes are stored at `staking/managers.py`, which manages the staking system. 
+
+A simulation of the Hedera staking process after many days is demonstrated at:
+```
+python script/hedera_staking_simulation.py
+```
+where the balances of each account is recorded. 
