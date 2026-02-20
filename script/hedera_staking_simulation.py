@@ -72,6 +72,7 @@ def main():
         num_hbars=NUM_STAKERS * 10,  # *10 to scale for min/max stake caps
         node_id_offset=10000,
         pareto_shape=2,
+        rng=rng,
     )
 
     # Rewards + fees engine
@@ -83,12 +84,16 @@ def main():
         share_staking_pool=0.10,  # fee share to 0.0.800
         share_node_pool=0.10,  # fee share to 0.0.801
         # reward schedule parameters (from equations in the paper)
-        pra=0.01,
-        prb=0.01,
-        prc=5.0,
-        prm=10.0,
         beta=0.50,  # split between node-vs-staker rewards
         epsilon=0.05,
+    )
+
+    # Reward schedule parameters (from equations in the paper)
+    reward_params = dict(
+        param_reward_a=0.01,
+        param_reward_b=0.01,
+        param_reward_c=5.0,
+        param_reward_m=10.0,
     )
 
     system = StakingSystem(
@@ -97,6 +102,7 @@ def main():
         engine=engine,
         staking_pool=staking_pool,
         node_pool=node_pool,
+        reward_params=reward_params,
     )
 
     # Track history

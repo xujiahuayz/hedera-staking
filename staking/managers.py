@@ -37,10 +37,6 @@ class RewardsEngine:
         share_treasury: float = 0.8,
         share_staking_pool: float = 0.1,
         share_node_pool: float = 0.1,
-        pra: float = 0.01,
-        prb: float = 0.01,
-        prc: float = 5,
-        prm: float = 10,
         beta: float = 0.5,
         epsilon: float = 0.05,
     ):
@@ -55,25 +51,27 @@ class RewardsEngine:
         self.share_staking_pool = float(share_staking_pool)
         self.share_node_pool = float(share_node_pool)
 
-        self.param_reward_a = float(pra)
-        self.param_reward_b = float(prb)
-        self.param_reward_c = float(prc)
-        self.param_reward_m = float(prm)
-
         self.beta = float(beta)
         self.epsilon = float(epsilon)
         self.time = 0
 
-    def reward_schedule(self, t: int) -> float:
+    @staticmethod
+    def reward_schedule(
+        *,
+        param_reward_a: float = 0.01,
+        param_reward_b: float = 0.01,
+        param_reward_c: float = 5.0,
+        param_reward_m: float = 10.0,
+        t: int,
+    ) -> float:
         t = max(1, int(t))
         return (
-            self.param_reward_a / (t ** (1 / self.param_reward_m))
-            + self.param_reward_b * (t ** (1 / self.param_reward_m))
-            + self.param_reward_c
+            param_reward_a / (t ** (1 / param_reward_m))
+            + param_reward_b * (t ** (1 / param_reward_m))
+            + param_reward_c
         )
 
-    def step(self) -> tuple[float, float]:
-        """Step forward one day."""
+    def step(self, **kwargs) -> tuple[float, float]:
         fees = calculate_transaction_fees(t=self.time)
 
         self.treasury.receive_fees(self.share_treasury * fees)
@@ -83,19 +81,17 @@ class RewardsEngine:
 
         self.time += 1
 
-        reward_t = self.reward_schedule(self.time)
+        kwargs["t"] = self.time
+        reward_t = self.reward_schedule(**kwargs)
         distributable = max(0.0, reward_t - self.epsilon)
-
         rs_target = (1 - self.beta) * distributable
         rn_target = self.beta * distributable
-
         rs = min(rs_target, self.staking_pool.balance)
         rn = (
             rn_target
             if self.node_pool is None
             else min(rn_target, self.node_pool.balance)
         )
-
         return float(rs), float(rn)
 
 
@@ -109,6 +105,7 @@ class Nodes:
         num_hbars: int | None = None,
         node_id_offset: int = 10000,
         pareto_shape: float = 3.0,
+        rng: np.random.Generator | None = None,
     ):
         self.num_stakers = int(num_stakers)
         self.num_nodes = int(num_nodes)
@@ -117,16 +114,22 @@ class Nodes:
             int(num_hbars) if num_hbars is not None else self.num_stakers * 10
         )
 
+        self.rng = rng if rng is not None else np.random.default_rng()
+
         self.agents_node = list(
             range(self.node_id_offset, self.node_id_offset + self.num_nodes)
         )
         self.pareto_shape = float(pareto_shape)
-        balance_nodes_initial = np.random.pareto(self.pareto_shape, self.num_nodes)
+        balance_nodes_initial = self.rng.pareto(self.pareto_shape, self.num_nodes)
 
-        self.nodes: dict[int, Node] = {
-            node_id: Node(account_id=node_id, initial_balance=float(balance))
-            for node_id, balance in zip(self.agents_node, balance_nodes_initial)
-        }
+        self.nodes: dict[int, Node] = {}
+        for node_id, balance in zip(self.agents_node, balance_nodes_initial):
+            node_rng = np.random.default_rng(self.rng.integers(0, 2**32 - 1))
+            self.nodes[node_id] = Node(
+                account_id=node_id,
+                initial_balance=float(balance),
+                rng=node_rng,
+            )
         self.balance_nodes_account = {
             nid: node.balance for nid, node in self.nodes.items()
         }
@@ -360,12 +363,14 @@ class StakingSystem:
         engine: RewardsEngine,
         staking_pool: StakingRewardsPool,
         node_pool: NodeRewardsPool | None = None,
+        reward_params: dict[str, float] | None = None,
     ):
         self.stakers = stakers
         self.nodes = nodes
         self.engine = engine
         self.staking_pool = staking_pool
         self.node_pool = node_pool
+        self.reward_params = dict(reward_params) if reward_params is not None else {}
         self.day = 0
 
         if stakers.node_id_offset != nodes.node_id_offset:
@@ -379,7 +384,7 @@ class StakingSystem:
         self.nodes.update_status(G)
         eligible = self.nodes.compute_eligibility(day=self.day)
 
-        rs, rn = self.engine.step()
+        rs, rn = self.engine.step(**self.reward_params)
 
         self.staking_pool.payout_to_stakers(
             self.stakers,
