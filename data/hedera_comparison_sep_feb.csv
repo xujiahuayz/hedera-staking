@@ -1,0 +1,51 @@
+metric,20250910,20250221,delta,delta_pct
+all.total_accounts," 4,444,206 "," 4,585,189 "," 140,983 ",3%
+all.total_hbar," 42,385,028,754 "," 49,999,971,417 "," 7,614,942,663 ",18%
+all.mean_balance_hbar," 9,537 "," 10,905 "," 1,368 ",14%
+all.median_balance_hbar, 0 , 0 , (0),0%
+all.std_dev_balance_hbar," 1,772,227 "," 1,779,190 "," 6,963 ",0%
+all.min_balance_hbar, 0 , 0 , -   ,0%
+all.max_balance_hbar," 2,619,418,327 "," 1,730,917,284 "," (888,501,043)",-34%
+all.p50_balance, 0 , 0 , (0),0%
+all.p75_balance, 0 , 0 , 0 ,4%
+all.p90_balance, 2 , 2 , 0 ,15%
+all.p95_balance, 449 , 700 , 251 ,56%
+all.p99_balance," 24,935 "," 25,537 ", 602 ,2%
+all.p99.9_balance," 307,154 "," 300,098 "," (7,056)",-2%
+all.p99.99_balance," 10,987,058 "," 5,519,151 "," (5,467,907)",-50%
+all.range.0-1 HBAR," 3,850,232 "," 3,940,920 "," 90,688 ",2%
+all.range.1-10 HBAR," 264,347 "," 284,046 "," 19,699 ",7%
+all.range.10-100 HBAR," 63,307 "," 66,901 "," 3,594 ",6%
+all.range.100-1K HBAR," 72,840 "," 78,444 "," 5,604 ",8%
+all.range.1K-10K HBAR," 109,243 "," 122,748 "," 13,505 ",12%
+all.range.10K-100K HBAR," 69,405 "," 76,813 "," 7,408 ",11%
+all.range.100K-1M HBAR," 13,219 "," 13,788 ", 569 ,4%
+all.range.1M-10M HBAR," 1,145 "," 1,170 ", 25 ,2%
+all.range.10M-100M HBAR, 395 , 231 , (164),-42%
+all.range.100M+ HBAR, 73 , 128 , 55 ,75%
+staking.total_accounts," 122,817 "," 133,373 "," 10,556 ",9%
+staking.total_hbar," 11,615,285,933 "," 17,481,791,157 "," 5,866,505,224 ",51%
+staking.mean_balance_hbar," 94,574 "," 131,074 "," 36,501 ",39%
+staking.median_balance_hbar, 134 , 100 , (35),-26%
+staking.std_dev_balance_hbar," 4,243,971 "," 5,335,185 "," 1,091,214 ",26%
+staking.min_balance_hbar, 0 , 0 , -   ,0%
+staking.max_balance_hbar," 644,448,355 "," 644,448,355 ", 0 ,0%
+staking.p50_balance, 134 , 100 , (35),-26%
+staking.p75_balance," 6,050 "," 5,808 ", (242),-4%
+staking.p90_balance," 34,437 "," 33,936 ", (501),-1%
+staking.p95_balance," 95,116 "," 95,252 ", 136 ,0%
+staking.p99_balance," 501,601 "," 512,696 "," 11,095 ",2%
+staking.p99.9_balance," 5,736,088 "," 8,494,484 "," 2,758,396 ",48%
+staking.p99.99_balance," 194,753,564 "," 300,000,031 "," 105,246,468 ",54%
+staking.range.0-1 HBAR," 27,656 "," 31,643 "," 3,987 ",14%
+staking.range.1-10 HBAR," 22,040 "," 24,124 "," 2,084 ",9%
+staking.range.10-100 HBAR," 10,106 "," 11,046 ", 940 ,9%
+staking.range.100-1K HBAR," 13,039 "," 13,530 ", 491 ,4%
+staking.range.1K-10K HBAR," 24,269 "," 25,497 "," 1,228 ",5%
+staking.range.10K-100K HBAR," 19,847 "," 21,132 "," 1,285 ",6%
+staking.range.100K-1M HBAR," 5,215 "," 5,654 ", 439 ,8%
+staking.range.1M-10M HBAR, 551 , 625 , 74 ,13%
+staking.range.10M-100M HBAR, 69 , 82 , 13 ,19%
+staking.range.100M+ HBAR, 25 , 40 , 15 ,60%
+summary.percentage_accounts_staking,2.763530763,2.908778678,0.145247915,5%
+summary.percentage_hbar_staked,27.4042186,34.9636023,7.559383702,28%

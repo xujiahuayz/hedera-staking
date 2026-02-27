@@ -17,13 +17,14 @@ def calculate_transaction_fees(
     t: int, prp: float = 0.3, prq: float = 0.001, Uo: float = 10, fee_tx: float = 1
 ) -> float:
     """Transaction fee estimation, from the paper."""
-    t = int(t)
-    num_tx = (
-        Uo
-        * (1 - math.exp(-(prp + prq) * t))
-        / (1 + (prp / prq) * (math.exp(-(prp + prq) * t)))
-    )
-    return float(num_tx * fee_tx)
+    # t = int(t)
+    # num_tx = (
+    #     Uo
+    #     * (1 - math.exp(-(prp + prq) * t))
+    #     / (1 + (prp / prq) * (math.exp(-(prp + prq) * t)))
+    # )
+    # return float(num_tx * fee_tx)
+    return 1e-3
 
 
 class RewardsEngine:
