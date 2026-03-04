@@ -1,0 +1,391 @@
+"""Managers for the staking system."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import networkx as nx
+import numpy as np
+
+from staking.accounts import (
+    FeeCollection,
+    Node,
+    NodeRewardsPool,
+    Staker,
+    StakingRewardsPool,
+    Treasury,
+)
+
+
+class StakingEnvironment:
+    """Unified environment for stakers + nodes state and reward transitions."""
+
+    def __init__(
+        self,
+        num_stakers: int,
+        num_nodes: int,
+        num_hbars: int = 42000000000,
+        staker_pareto_shape: float = 3.0,
+        node_pareto_shape: float = 3.0,
+        treasury: Treasury | None = None,
+        staking_pool: StakingRewardsPool | None = None,
+        node_pool: NodeRewardsPool | None = None,
+        fee_collection: FeeCollection | None = None,
+        reward_params: dict[str, float] | None = None,
+        node_fee_per_tx: float = 1e-5,
+        staker_activity_min: float = 0.1,
+        staker_activity_scale: float = 1.0,
+        rng: np.random.Generator | None = None,
+    ):
+        self.num_stakers = int(num_stakers)
+        self.num_nodes = int(num_nodes)
+        self.num_hbars = int(num_hbars)
+        self.rng = rng if rng is not None else np.random.default_rng()
+        self.day = 0
+        self.treasury = (
+            treasury if treasury is not None else Treasury(initial_balance=3284822.0)
+        )
+        self.staking_pool = (
+            staking_pool
+            if staking_pool is not None
+            else StakingRewardsPool(initial_balance=215204097.0)
+        )
+        self.node_pool = node_pool
+        self.fee_collection = fee_collection
+        self.reward_params = dict(reward_params)
+        self.node_fee_per_tx = float(node_fee_per_tx)
+        self.staker_activity_min = float(staker_activity_min)
+        self.staker_activity_scale = float(staker_activity_scale)
+        self.node_ids = list(range(0, self.num_nodes))
+
+        staker_balances = 10.0 * self.rng.pareto(
+            float(staker_pareto_shape), self.num_stakers
+        )
+        node_balances = self.rng.pareto(float(node_pareto_shape), self.num_nodes)
+
+        self.stakers: dict[int, Staker] = {}
+        for sid, bal in zip(range(self.num_stakers), staker_balances):
+            staker_rng = np.random.default_rng(self.rng.integers(0, 2**32 - 1))
+            activity_rate = max(
+                self.staker_activity_min,
+                self.staker_activity_scale * float(np.log1p(max(float(bal), 0.0))),
+            )
+            self.stakers[sid] = Staker(
+                account_id=sid,
+                initial_balance=float(bal),
+                activity_rate=activity_rate,
+                rng=staker_rng,
+            )
+
+        self.nodes: dict[int, Node] = {}
+        for nid, bal in zip(self.node_ids, node_balances):
+            self.nodes[nid] = Node(account_id=nid, initial_balance=float(bal))
+
+        self.balance_stakers_account = {
+            sid: s.balance for sid, s in self.stakers.items()
+        }
+        self.balance_nodes_account = {nid: n.balance for nid, n in self.nodes.items()}
+        self.staking_network: nx.Graph = nx.Graph()
+        self.edge_staking: dict[int, float] = {}
+        self.rewardable_stake: dict[int, int] = {}
+        self.node_payments_info: dict[int, float] = {nid: 0.0 for nid in self.node_ids}
+        self.reward_distribute_staker: dict[int, float] = {}
+        self.reward_distribute_node: dict[int, float] = {}
+
+    @staticmethod
+    def calculate_network_service_fees(
+        t: int, prp: float = 0.3, prq: float = 0.001, Uo: float = 10, fee_tx: float = 1
+    ) -> float:
+        """Estimate network + service fees that flow into 0.0.802."""
+        t = int(t)
+        num_tx = (
+            Uo
+            * (1 - math.exp(-(prp + prq) * t))
+            / (1 + (prp / prq) * (math.exp(-(prp + prq) * t)))
+        )
+        return float(num_tx * fee_tx)
+
+    def calculate_node_fees(self, t: int) -> dict[int, float]:
+        """Estimate per-node fees accumulated in NodePaymentsInfo.
+
+        Node fees are proxied from heterogeneous per-staker transaction volume:
+        each staker samples a daily transaction count, and those fees are
+        attributed to the node they are currently staking to.
+        """
+        node_fees = {nid: 0.0 for nid in self.node_ids}
+        for sid in range(self.num_stakers):
+            nbrs = list(self.staking_network.neighbors(sid))
+            if len(nbrs) != 1:
+                continue
+            nid = int(nbrs[0])
+            tx_count = self.stakers[sid].simulate_daily_transactions(day=int(t))
+            node_fees[nid] += float(tx_count) * self.node_fee_per_tx
+
+        return node_fees
+
+    def record_node_fees(self, node_fees: dict[int, float]) -> dict[int, float]:
+        "Record how much node-fee payment that each node receives."
+        for nid in self.node_ids:
+            self.node_payments_info[nid] = float(node_fees.get(nid, 0.0))
+        return dict(self.node_payments_info)
+
+    def snapshot_stakes(
+        self, day: int | None = None, chosen_node: int | None = None
+    ) -> nx.Graph:
+        """Snapshot staker -> node stake edges at a given day."""
+        day = self.day if day is None else int(day)
+        if chosen_node is not None and chosen_node not in self.node_ids:
+            raise ValueError("chosen_node must be a valid node ID in self.agents_node")
+
+        G = nx.Graph()
+        G.add_nodes_from(range(self.num_stakers), bipartite=0)
+        G.add_nodes_from(self.node_ids, bipartite=1)
+
+        for sid in range(self.num_stakers):
+            staker = self.stakers[sid]
+            stake_amount = int(math.floor(staker.balance))
+            if stake_amount <= 0:
+                continue
+            nid = staker.choose_node(self.node_ids, chosen_node=chosen_node)
+            G.add_edge(sid, nid, weight=stake_amount)
+
+        self.staking_network = G
+        return G
+
+    def update_node_status(
+        self, staking_network: nx.Graph | None = None, day: int | None = None
+    ):
+        day = self.day if day is None else int(day)
+        staking_network = (
+            self.staking_network if staking_network is None else staking_network
+        )
+
+        self.edge_staking = {
+            nid: float(staking_network.degree(nid, weight="weight"))
+            for nid in self.node_ids
+        }
+        self.rewardable_stake = {}
+        for nid in self.node_ids:
+            node = self.nodes[nid]
+            edge_stake = float(self.edge_staking.get(nid, 0.0))
+            self.rewardable_stake[nid] = node.compute_stake(
+                num_hbars=self.num_hbars,
+                num_nodes=self.num_nodes,
+                edge_stake=edge_stake,
+            )
+
+    def distribute_node_rewards(self, rn: float) -> dict[int, float]:
+        """
+        Distribute node rewards based on the node's rewardable stake and the node's payment info.
+        """
+        rn = float(rn)
+        total_rewardable = sum(self.rewardable_stake.values())
+        self.reward_distribute_node = {
+            nid: float(self.node_payments_info.get(nid, 0.0)) for nid in self.node_ids
+        }
+
+        for nid, amount in self.reward_distribute_node.items():
+            if amount:
+                self.nodes[nid].update_balance(amount)
+                self.balance_nodes_account[nid] = self.nodes[nid].balance
+
+        if rn <= 0 or total_rewardable == 0:
+            self.node_payments_info = {nid: 0.0 for nid in self.node_ids}
+            return self.reward_distribute_node
+
+        for nid in self.node_ids:
+            w = self.rewardable_stake.get(nid, 0)
+            reward = rn * (w / total_rewardable) if w > 0 else 0.0
+            self.reward_distribute_node[nid] += reward
+            if reward:
+                self.nodes[nid].update_balance(reward)
+                self.balance_nodes_account[nid] = self.nodes[nid].balance
+        self.node_payments_info = {nid: 0.0 for nid in self.node_ids}
+        return self.reward_distribute_node
+
+    def distribute_staker_rewards(
+        self,
+        rs: float,
+        day: int | None = None,
+        staking_network: nx.Graph | None = None,
+        *,
+        rewardable_stake: dict[int, int] | None = None,
+    ) -> dict[int, float]:
+        day = self.day if day is None else int(day)
+        staking_network = (
+            self.staking_network if staking_network is None else staking_network
+        )
+
+        rs = float(rs)
+
+        node_total_stake: dict[int, int] = {}
+        for sid in range(self.num_stakers):
+            nbrs = list(staking_network.neighbors(sid))
+            if len(nbrs) != 1:
+                continue
+            nid = nbrs[0]
+            w = int(staking_network[sid][nid].get("weight", 0))
+            if w > 0:
+                node_total_stake[nid] = node_total_stake.get(nid, 0) + w
+
+        effective: dict[int, int] = {}
+        for sid in range(self.num_stakers):
+            nbrs = list(staking_network.neighbors(sid))
+            if len(nbrs) != 1:
+                continue
+            nid = nbrs[0]
+            w = int(staking_network[sid][nid].get("weight", 0))
+            if w <= 0:
+                continue
+
+            if rewardable_stake is not None:
+                cap = int(rewardable_stake.get(nid, 0))
+                tot = int(node_total_stake.get(nid, 0))
+                if cap <= 0 or tot <= 0:
+                    continue
+                w = int(math.floor(w * min(1.0, cap / tot)))
+            if w > 0:
+                effective[sid] = w
+
+        total_effective = sum(effective.values())
+        if total_effective == 0:
+            self.reward_distribute_staker = {
+                sid: 0.0 for sid in range(self.num_stakers)
+            }
+            return self.reward_distribute_staker
+
+        rewards: dict[int, float] = {}
+        for sid in range(self.num_stakers):
+            w = effective.get(sid, 0)
+            reward = rs * (w / total_effective) if w > 0 else 0.0
+            rewards[sid] = reward
+            if reward:
+                self.stakers[sid].update_balance(reward)
+            self.balance_stakers_account[sid] = self.stakers[sid].balance
+
+        self.reward_distribute_staker = rewards
+        return rewards
+
+    def step_day(self) -> tuple[float, float]:
+        G = self.snapshot_stakes(day=self.day)
+        self.update_node_status(staking_network=G, day=self.day)
+
+        network_service_fees = self.calculate_network_service_fees(t=self.day)
+        node_fees = self.calculate_node_fees(t=self.day)
+        self.record_node_fees(node_fees)
+
+        self.fee_collection.collect_fees(network_service_fees)
+        _, rs, rn = self.fee_collection.route_fees(
+            self.treasury,
+            self.staking_pool,
+            self.node_pool,
+        )
+        scheduled_rs = self.staking_pool.reward_schedule(
+            t=self.day + 1, **self.reward_params
+        )
+        rs = min(float(scheduled_rs), float(self.staking_pool.balance))
+
+        self.staking_pool.payout_to_stakers(
+            self,
+            rs,
+            day=self.day,
+            staking_network=G,
+            rewardable_stake=self.rewardable_stake,
+        )
+        if self.node_pool is not None:
+            self.node_pool.payout_to_nodes(self, rn)
+        else:
+            self.distribute_node_rewards(rn)
+        self.day += 1
+        return rs, rn
+
+
+def _fmt(x: float) -> str:
+    """Format a float to a string with 4 decimal places."""
+    return f"{x:,.4f}"
+
+
+@dataclass
+class Snapshot:
+    day: int
+    rs: float
+    rn: float
+    treasury_balance: float
+    staking_pool_balance: float
+    node_pool_balance: float | None
+    total_staker_balance: float
+    total_node_balance: float
+
+
+def main(
+    days: int = 20, num_stakers: int = 120000, num_nodes: int = 32, seed: int = 123
+) -> list[Snapshot]:
+    rng = np.random.default_rng(seed)
+    treasury = Treasury(initial_balance=3284822.0)
+    staking_pool = StakingRewardsPool(initial_balance=215204097.0)
+    node_pool = NodeRewardsPool(initial_balance=993358.0)
+    reward_params = {
+        "param_reward_a": 0.01,
+        "param_reward_b": 0.01,
+        "param_reward_c": 5.0,
+        "param_reward_m": 10.0,
+    }
+    env = StakingEnvironment(
+        num_stakers=num_stakers,
+        num_nodes=num_nodes,
+        num_hbars=42000000000,
+        staker_pareto_shape=2.0,
+        node_pareto_shape=2.0,
+        treasury=treasury,
+        staking_pool=staking_pool,
+        node_pool=node_pool,
+        fee_collection=FeeCollection(
+            share_staking_pool=0.10,
+            share_node_pool=0.10,
+        ),
+        reward_params=reward_params,
+        node_fee_per_tx=1e-5,
+        staker_activity_min=0.1,
+        staker_activity_scale=1.0,
+        rng=rng,
+    )
+
+    history: list[Snapshot] = []
+    print(
+        f"\n=== START SIMULATION stakers={num_stakers}, nodes={num_nodes}, days={days} ===\n"
+    )
+    for day in range(days):
+        total_staker_before = float(sum(env.balance_stakers_account.values()))
+        total_node_before = float(sum(env.balance_nodes_account.values()))
+        rs, rn = env.step_day()
+        total_staker_after = float(sum(env.balance_stakers_account.values()))
+        total_node_after = float(sum(env.balance_nodes_account.values()))
+        active_nodes = sum(1 for s in env.rewardable_stake.values() if s > 0)
+        print(
+            f"Day {day:>2} | active nodes {active_nodes}/{num_nodes} | "
+            f"stakers Δ {_fmt(total_staker_after-total_staker_before)} | "
+            f"nodes Δ {_fmt(total_node_after-total_node_before)}"
+        )
+        history.append(
+            Snapshot(
+                day=day,
+                rs=float(rs),
+                rn=float(rn),
+                treasury_balance=float(treasury.balance),
+                staking_pool_balance=float(staking_pool.balance),
+                node_pool_balance=float(node_pool.balance),
+                total_staker_balance=total_staker_after,
+                total_node_balance=total_node_after,
+            )
+        )
+
+    print("\n=== END SIMULATION ===")
+    print(
+        f"Treasury {_fmt(treasury.balance)} | 0.0.800 {_fmt(staking_pool.balance)} | 0.0.801 {_fmt(node_pool.balance)}"
+    )
+    return history
+
+
+if __name__ == "__main__":
+    main()

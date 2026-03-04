@@ -7,6 +7,7 @@ And the following subclasses:
 - Node: validating node accounts that receive stakes
 - StakingRewardsPool: system pool analogous to Hedera 0.0.800
 - NodeRewardsPool: system pool analogous to Hedera 0.0.801
+- FeeCollection: system fee collection account analogous to Hedera 0.0.802
 - Treasury: system pool analogous to Hedera 0.0.98 (can receive fees and transfer to Reward account)
 """
 
@@ -16,10 +17,8 @@ import numpy as np
 import networkx as nx
 from typing import TYPE_CHECKING
 
-from staking.constants import RUNTIME_THRESHOLD
-
 if TYPE_CHECKING:
-    from staking.managers import Nodes, Stakers
+    from staking.managers import StakingEnvironment
 
 
 class Account:
@@ -43,31 +42,28 @@ class Staker(Account):
         self,
         account_id: int,
         initial_balance: float = 0.0,
-        p_switch: float = 0.05,
+        activity_rate: float | None = None,
         rng: np.random.Generator | None = None,
     ):
         super().__init__(account_id, initial_balance)
-        if not (0.0 <= p_switch <= 1.0):
-            raise ValueError("p_switch must be in [0, 1].")
-
-        self.p_switch = float(p_switch)  # probability of switching a node to stake
         self.rng = rng if rng is not None else np.random.default_rng()
+
+        # Use a heterogeneous baseline activity rate so higher-balance stakers
+        # tend to generate more transactions without making activity deterministic.
+        if activity_rate is None:
+            activity_rate = max(0.1, float(np.log1p(max(initial_balance, 0.0))))
+        self.activity_rate = float(activity_rate)
+        self.daily_transactions_history: dict[int, int] = {}
 
         self.current_target: int | None = None
         self.staked_since_day: int | None = None
 
-    def choose_target(
-        self, node_ids: list[int], day: int, chosen_node: int | None = None
-    ) -> int:
-        day = int(day)
+    def choose_node(self, node_ids: list[int], chosen_node: int | None = None) -> int:
         "Choose one target node to stake. If there's no specific node indicated, a node will be assigned randomly."
 
         def _set_target(new_target: int):
             if self.current_target != new_target:
                 self.current_target = new_target
-                self.staked_since_day = day
-            elif self.staked_since_day is None:
-                self.staked_since_day = day
 
         if chosen_node is not None:
             if chosen_node not in node_ids:
@@ -79,37 +75,78 @@ class Staker(Account):
             _set_target(int(self.rng.choice(node_ids)))
             return int(self.current_target)
 
-        if self.rng.random() < self.p_switch:
-            _set_target(int(self.rng.choice(node_ids)))
-
         return int(self.current_target)
+
+    def simulate_daily_transactions(self, day: int) -> int:
+        """Sample this staker's daily transaction count."""
+        tx_count = int(self.rng.poisson(self.activity_rate))
+        self.daily_transactions_history[int(day)] = tx_count
+        return tx_count
 
 
 class Node(Account):
-    """Validating node account with stochastic performance."""
+    """Calculate the final stake for a node."""
 
     def __init__(
         self,
         account_id: int | str,
-        quality: float = 0.9,
         initial_balance: float = 0.0,
-        rng: np.random.Generator | None = None,
     ):
-        if not (0.0 <= quality <= 1.0):
-            raise ValueError("quality must be in [0, 1]")
 
         super().__init__(account_id, initial_balance)
-        self.rng = rng if rng is not None else np.random.default_rng()
-        self.quality = float(np.clip(self.rng.normal(loc=quality, scale=0.05), 0, 1))
-        self.performance_history: dict[str, dict] = {}
 
-    def generate_daily_performance(self, day: int):
-        runtime = float(self.rng.triangular(left=0.0, mode=self.quality, right=1.0))
-        self.performance_history[f"day_{day}"] = {
-            "day": int(day),
-            "runtime": runtime,
-            "pass_threshold": runtime >= RUNTIME_THRESHOLD,
-        }
+    def compute_stake(self, num_hbars: int, num_nodes: int, edge_stake: float) -> int:
+        """Compute this node's rewardable stake using the network caps.
+        edge_stake is the total amount of stakers pointed to this node."""
+        max_stake = float(num_hbars) / float(num_nodes)
+        stake = min(float(edge_stake), max_stake)
+        return int(np.floor(max(0.0, stake)))
+
+
+class FeeCollection(Account):
+    """System fee collection account analogous to Hedera 0.0.802. It collects fees and routes them to the treasury, staking pool, and node pool."""
+
+    def __init__(
+        self,
+        account_id: str = "0.0.802",
+        initial_balance: float = 0.0,
+        share_staking_pool: float = 0.1,
+        share_node_pool: float = 0.1,
+    ):
+        super().__init__(account_id, initial_balance)
+
+        self.share_staking_pool = float(share_staking_pool)
+        self.share_node_pool = float(share_node_pool)
+        self.share_treasury = 1 - self.share_staking_pool - self.share_node_pool
+
+    def collect_fees(self, amount: float) -> float:
+        amount = float(amount)
+        if amount <= 0:
+            return 0.0
+        self.update_balance(amount)
+        return amount
+
+    def route_fees(
+        self,
+        treasury: Treasury,
+        staking_pool: StakingRewardsPool,
+        node_pool: NodeRewardsPool,
+    ) -> tuple[float, float, float]:
+        if self.balance <= 0:
+            return 0.0, 0.0, 0.0
+
+        fees = float(self.balance)
+        t_amt = self.share_treasury * fees
+        s_amt = self.share_staking_pool * fees
+        n_amt = self.share_node_pool * fees
+
+        treasury.receive_fees(t_amt)
+        staking_pool.fund_from_fees(s_amt)
+        if node_pool is not None:
+            node_pool.fund_from_fees(n_amt)
+
+        self.update_balance(-fees)
+        return float(t_amt), float(s_amt), float(n_amt)
 
 
 class NodeRewardsPool(Account):
@@ -125,20 +162,12 @@ class NodeRewardsPool(Account):
         self.update_balance(amount)
         return amount
 
-    def payout_to_nodes(self, nodes: "Nodes", rn: float) -> float:
+    def payout_to_nodes(self, env: StakingEnvironment, rn: float) -> float:
         rn = min(float(rn), self.balance)
-        if rn <= 0:
-            # Ensure downstream reporting doesn't accidentally reuse yesterday's mapping.
-            try:
-                nodes.distribute_rewards(0.0)
-            except Exception:
-                pass
-            return 0.0
 
-        rewards = nodes.distribute_rewards(rn)
-        paid = float(sum(rewards.values())) if rewards is not None else 0.0
+        rewards = env.distribute_node_rewards(rn)
+        paid = float(sum(rewards.values()))
 
-        # Defensive clamp against float drift.
         paid = min(paid, rn, self.balance)
         if paid <= 0:
             return 0.0
@@ -150,7 +179,11 @@ class NodeRewardsPool(Account):
 class StakingRewardsPool(Account):
     """System pool analogous to Hedera 0.0.800."""
 
-    def __init__(self, account_id: str = "0.0.800", initial_balance: float = 250.0):
+    def __init__(
+        self,
+        account_id: str = "0.0.800",
+        initial_balance: float = 250.0,
+    ):
         super().__init__(account_id, initial_balance)
 
     def fund_from_fees(self, amount: float) -> float:
@@ -160,39 +193,43 @@ class StakingRewardsPool(Account):
         self.update_balance(amount)
         return amount
 
+    @staticmethod
+    def reward_schedule(
+        *,
+        param_reward_a: float = 0.01,
+        param_reward_b: float = 0.01,
+        param_reward_c: float = 5.0,
+        param_reward_m: float = 10.0,
+        t: int,
+    ) -> float:
+        t = max(1, int(t))
+        return (
+            param_reward_a / (t ** (1 / param_reward_m))
+            + param_reward_b * (t ** (1 / param_reward_m))
+            + param_reward_c
+        )
+
     def payout_to_stakers(
         self,
-        stakers: "Stakers",
+        env: StakingEnvironment,
         rs: float,
         *,
         day: int,
-        staking_network: nx.Graph | None = None,
-        eligible_nodes: set[int] | None = None,
+        staking_network: nx.Graph,
         rewardable_stake: dict[int, int] | None = None,
-        min_stake_age_days: int = 1,
     ) -> float:
         rs = float(rs)
-        if rs <= 0:
-            return 0.0
-
         pay_amount = min(rs, self.balance)
-        if pay_amount <= 0:
-            return 0.0
 
-        rewards = stakers.distribute_rewards(
+        rewards = env.distribute_staker_rewards(
             pay_amount,
             day=int(day),
             staking_network=staking_network,
-            eligible_nodes=eligible_nodes,
             rewardable_stake=rewardable_stake,
-            min_stake_age_days=int(min_stake_age_days),
         )
-        paid = float(sum(rewards.values())) if rewards is not None else 0.0
+        paid = float(sum(rewards.values()))
 
-        # Defensive clamp against float drift.
         paid = min(paid, pay_amount, self.balance)
-        if paid <= 0:
-            return 0.0
 
         self.update_balance(-paid)
         return paid
@@ -206,7 +243,5 @@ class Treasury(Account):
 
     def receive_fees(self, amount: float) -> float:
         amount = float(amount)
-        if amount <= 0:
-            return 0.0
         self.update_balance(amount)
         return amount

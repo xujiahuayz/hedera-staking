@@ -146,10 +146,4 @@ The most important rules above all:
 
 The Hedera account environment is stored at `staking/accounts.py`.
 
-The 'managers' of the Hedera staking processes are stored at `staking/managers.py`, which manages the staking system. 
-
-A simulation of the Hedera staking process after many days is demonstrated at:
-```
-python script/hedera_staking_simulation.py
-```
-where the balances of each account is recorded. 
+The environment of the Hedera staking processes are stored at `staking/stakingenv.py`, which manages the staking system. 
