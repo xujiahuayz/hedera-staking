@@ -98,9 +98,6 @@ class StakingEnvironment:
         self.node_payments_info: dict[int, float] = {nid: 0.0 for nid in self.node_ids}
         self.reward_distribute_staker: dict[int, float] = {}
         self.reward_distribute_node: dict[int, float] = {}
-        self._last_active_nodes: int | None = None
-        self._last_staker_delta: float | None = None
-        self._last_node_delta: float | None = None
 
     def __repr__(self) -> str:
         return (
@@ -375,9 +372,6 @@ def main(
         total_staker_after = float(sum(env.balance_stakers_account.values()))
         total_node_after = float(sum(env.balance_nodes_account.values()))
         active_nodes = sum(1 for s in env.rewardable_stake.values() if s > 0)
-        env._last_active_nodes = active_nodes
-        env._last_staker_delta = total_staker_after - total_staker_before
-        env._last_node_delta = total_node_after - total_node_before
         print(env)
         history.append(
             {
