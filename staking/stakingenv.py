@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 
 import networkx as nx
 import numpy as np
@@ -46,18 +45,20 @@ class StakingEnvironment:
         self.treasury = (
             treasury if treasury is not None else Treasury(initial_balance=3284822.0)
         )
-        self.staking_pool = (
-            staking_pool
-            if staking_pool is not None
-            else StakingRewardsPool(initial_balance=215204097.0)
-        )
+        self.staking_pool = StakingRewardsPool(env=self, initial_balance=215204097.0)
+
         self.node_pool = node_pool
-        self.fee_collection = fee_collection
+        self.fee_collection = (
+            fee_collection if fee_collection is not None else FeeCollection(env=self)
+        )
         self.reward_params = dict(reward_params)
         self.node_fee_per_tx = float(node_fee_per_tx)
         self.staker_activity_min = float(staker_activity_min)
         self.staker_activity_scale = float(staker_activity_scale)
         self.node_ids = list(range(0, self.num_nodes))
+
+        self.staking_pool.env = self
+        self.fee_collection.env = self
 
         staker_balances = 10.0 * self.rng.pareto(
             float(staker_pareto_shape), self.num_stakers
@@ -72,6 +73,7 @@ class StakingEnvironment:
                 self.staker_activity_scale * float(np.log1p(max(float(bal), 0.0))),
             )
             self.stakers[sid] = Staker(
+                env=self,
                 account_id=sid,
                 initial_balance=float(bal),
                 activity_rate=activity_rate,
@@ -80,7 +82,11 @@ class StakingEnvironment:
 
         self.nodes: dict[int, Node] = {}
         for nid, bal in zip(self.node_ids, node_balances):
-            self.nodes[nid] = Node(account_id=nid, initial_balance=float(bal))
+            self.nodes[nid] = Node(
+                env=self,
+                account_id=nid,
+                initial_balance=float(bal),
+            )
 
         self.balance_stakers_account = {
             sid: s.balance for sid, s in self.stakers.items()
@@ -92,6 +98,17 @@ class StakingEnvironment:
         self.node_payments_info: dict[int, float] = {nid: 0.0 for nid in self.node_ids}
         self.reward_distribute_staker: dict[int, float] = {}
         self.reward_distribute_node: dict[int, float] = {}
+        self._last_active_nodes: int | None = None
+        self._last_staker_delta: float | None = None
+        self._last_node_delta: float | None = None
+
+    def __repr__(self) -> str:
+        return (
+            f"StakingEnvironment(day={self.day}, "
+            f"treasury_balance={self.treasury.balance:.4f}, "
+            f"staking_pool_balance={self.staking_pool.balance:.4f}, "
+            f"node_pool_balance={self.node_pool.balance:.4f})"
+        )
 
     @staticmethod
     def calculate_network_service_fees(
@@ -123,12 +140,6 @@ class StakingEnvironment:
             node_fees[nid] += float(tx_count) * self.node_fee_per_tx
 
         return node_fees
-
-    def record_node_fees(self, node_fees: dict[int, float]) -> dict[int, float]:
-        "Record how much node-fee payment that each node receives."
-        for nid in self.node_ids:
-            self.node_payments_info[nid] = float(node_fees.get(nid, 0.0))
-        return dict(self.node_payments_info)
 
     def snapshot_stakes(
         self, day: int | None = None, chosen_node: int | None = None
@@ -187,7 +198,7 @@ class StakingEnvironment:
 
         for nid, amount in self.reward_distribute_node.items():
             if amount:
-                self.nodes[nid].update_balance(amount)
+                self.nodes[nid].add_to_balance(amount)
                 self.balance_nodes_account[nid] = self.nodes[nid].balance
 
         if rn <= 0 or total_rewardable == 0:
@@ -196,10 +207,10 @@ class StakingEnvironment:
 
         for nid in self.node_ids:
             w = self.rewardable_stake.get(nid, 0)
-            reward = rn * (w / total_rewardable) if w > 0 else 0.0
+            reward = rn * (w / total_rewardable)
             self.reward_distribute_node[nid] += reward
             if reward:
-                self.nodes[nid].update_balance(reward)
+                self.nodes[nid].add_to_balance(reward)
                 self.balance_nodes_account[nid] = self.nodes[nid].balance
         self.node_payments_info = {nid: 0.0 for nid in self.node_ids}
         return self.reward_distribute_node
@@ -261,11 +272,25 @@ class StakingEnvironment:
             reward = rs * (w / total_effective) if w > 0 else 0.0
             rewards[sid] = reward
             if reward:
-                self.stakers[sid].update_balance(reward)
+                self.stakers[sid].add_to_balance(reward)
             self.balance_stakers_account[sid] = self.stakers[sid].balance
 
         self.reward_distribute_staker = rewards
         return rewards
+
+    @property
+    def state_summary(self) -> dict[str, int | float | None]:
+        """Return a summary of the current environment state."""
+        return {
+            "day": self.day,
+            "treasury_balance": float(self.treasury.balance),
+            "staking_pool_balance": float(self.staking_pool.balance),
+            "node_pool_balance": (
+                float(self.node_pool.balance) if self.node_pool is not None else None
+            ),
+            "total_staker_balance": float(sum(self.balance_stakers_account.values())),
+            "total_node_balance": float(sum(self.balance_nodes_account.values())),
+        }
 
     def step_day(self) -> tuple[float, float]:
         G = self.snapshot_stakes(day=self.day)
@@ -273,7 +298,9 @@ class StakingEnvironment:
 
         network_service_fees = self.calculate_network_service_fees(t=self.day)
         node_fees = self.calculate_node_fees(t=self.day)
-        self.record_node_fees(node_fees)
+        self.node_payments_info = {
+            nid: float(node_fees.get(nid, 0.0)) for nid in self.node_ids
+        }
 
         self.fee_collection.collect_fees(network_service_fees)
         _, rs, rn = self.fee_collection.route_fees(
@@ -287,14 +314,13 @@ class StakingEnvironment:
         rs = min(float(scheduled_rs), float(self.staking_pool.balance))
 
         self.staking_pool.payout_to_stakers(
-            self,
-            rs,
+            rs=rs,
             day=self.day,
             staking_network=G,
             rewardable_stake=self.rewardable_stake,
         )
         if self.node_pool is not None:
-            self.node_pool.payout_to_nodes(self, rn)
+            self.node_pool.payout_to_nodes(rn=rn, env=self)
         else:
             self.distribute_node_rewards(rn)
         self.day += 1
@@ -306,24 +332,11 @@ def _fmt(x: float) -> str:
     return f"{x:,.4f}"
 
 
-@dataclass
-class Snapshot:
-    day: int
-    rs: float
-    rn: float
-    treasury_balance: float
-    staking_pool_balance: float
-    node_pool_balance: float | None
-    total_staker_balance: float
-    total_node_balance: float
-
-
 def main(
     days: int = 20, num_stakers: int = 120000, num_nodes: int = 32, seed: int = 123
-) -> list[Snapshot]:
+) -> list[dict[str, int | float | None]]:
     rng = np.random.default_rng(seed)
     treasury = Treasury(initial_balance=3284822.0)
-    staking_pool = StakingRewardsPool(initial_balance=215204097.0)
     node_pool = NodeRewardsPool(initial_balance=993358.0)
     reward_params = {
         "param_reward_a": 0.01,
@@ -338,7 +351,7 @@ def main(
         staker_pareto_shape=2.0,
         node_pareto_shape=2.0,
         treasury=treasury,
-        staking_pool=staking_pool,
+        staking_pool=StakingRewardsPool(initial_balance=215204097.0),
         node_pool=node_pool,
         fee_collection=FeeCollection(
             share_staking_pool=0.10,
@@ -351,7 +364,7 @@ def main(
         rng=rng,
     )
 
-    history: list[Snapshot] = []
+    history: list[dict[str, int | float | None]] = []
     print(
         f"\n=== START SIMULATION stakers={num_stakers}, nodes={num_nodes}, days={days} ===\n"
     )
@@ -362,27 +375,24 @@ def main(
         total_staker_after = float(sum(env.balance_stakers_account.values()))
         total_node_after = float(sum(env.balance_nodes_account.values()))
         active_nodes = sum(1 for s in env.rewardable_stake.values() if s > 0)
-        print(
-            f"Day {day:>2} | active nodes {active_nodes}/{num_nodes} | "
-            f"stakers Δ {_fmt(total_staker_after-total_staker_before)} | "
-            f"nodes Δ {_fmt(total_node_after-total_node_before)}"
-        )
+        env._last_active_nodes = active_nodes
+        env._last_staker_delta = total_staker_after - total_staker_before
+        env._last_node_delta = total_node_after - total_node_before
+        print(env)
         history.append(
-            Snapshot(
-                day=day,
-                rs=float(rs),
-                rn=float(rn),
-                treasury_balance=float(treasury.balance),
-                staking_pool_balance=float(staking_pool.balance),
-                node_pool_balance=float(node_pool.balance),
-                total_staker_balance=total_staker_after,
-                total_node_balance=total_node_after,
-            )
+            {
+                **env.state_summary,
+                "day": day,
+                "rs": float(rs),
+                "rn": float(rn),
+                "total_staker_balance": total_staker_after,
+                "total_node_balance": total_node_after,
+            }
         )
 
     print("\n=== END SIMULATION ===")
     print(
-        f"Treasury {_fmt(treasury.balance)} | 0.0.800 {_fmt(staking_pool.balance)} | 0.0.801 {_fmt(node_pool.balance)}"
+        f"Treasury {_fmt(treasury.balance)} | 0.0.800 {_fmt(env.staking_pool.balance)} | 0.0.801 {_fmt(node_pool.balance)}"
     )
     return history
 

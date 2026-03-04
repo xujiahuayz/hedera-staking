@@ -18,7 +18,7 @@ import networkx as nx
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from staking.managers import StakingEnvironment
+    from staking.stakingenv import StakingEnvironment
 
 
 class Account:
@@ -27,12 +27,10 @@ class Account:
     def __init__(self, account_id: int | str, initial_balance: float = 0.0):
         self.id = account_id
         self.balance = float(initial_balance)
-        self.history: list[float] = []
 
-    def update_balance(self, amount: float):
+    def add_to_balance(self, amount: float):
         amount = float(amount)
         self.balance += amount
-        self.history.append(amount)
 
 
 class Staker(Account):
@@ -44,7 +42,9 @@ class Staker(Account):
         initial_balance: float = 0.0,
         activity_rate: float | None = None,
         rng: np.random.Generator | None = None,
+        env: StakingEnvironment = None,
     ):
+        self.env = env
         super().__init__(account_id, initial_balance)
         self.rng = rng if rng is not None else np.random.default_rng()
 
@@ -91,8 +91,9 @@ class Node(Account):
         self,
         account_id: int | str,
         initial_balance: float = 0.0,
+        env: StakingEnvironment = None,
     ):
-
+        self.env = env
         super().__init__(account_id, initial_balance)
 
     def compute_stake(self, num_hbars: int, num_nodes: int, edge_stake: float) -> int:
@@ -112,7 +113,9 @@ class FeeCollection(Account):
         initial_balance: float = 0.0,
         share_staking_pool: float = 0.1,
         share_node_pool: float = 0.1,
+        env: StakingEnvironment = None,
     ):
+        self.env = env
         super().__init__(account_id, initial_balance)
 
         self.share_staking_pool = float(share_staking_pool)
@@ -123,7 +126,7 @@ class FeeCollection(Account):
         amount = float(amount)
         if amount <= 0:
             return 0.0
-        self.update_balance(amount)
+        self.add_to_balance(amount)
         return amount
 
     def route_fees(
@@ -145,21 +148,27 @@ class FeeCollection(Account):
         if node_pool is not None:
             node_pool.fund_from_fees(n_amt)
 
-        self.update_balance(-fees)
+        self.add_to_balance(-fees)
         return float(t_amt), float(s_amt), float(n_amt)
 
 
 class NodeRewardsPool(Account):
     """System pool analogous to Hedera 0.0.801."""
 
-    def __init__(self, account_id: str = "0.0.801", initial_balance: float = 0.0):
+    def __init__(
+        self,
+        account_id: str = "0.0.801",
+        initial_balance: float = 0.0,
+        env: StakingEnvironment = None,
+    ):
+        self.env = env
         super().__init__(account_id, initial_balance)
 
     def fund_from_fees(self, amount: float) -> float:
         amount = float(amount)
         if amount <= 0:
             return 0.0
-        self.update_balance(amount)
+        self.add_to_balance(amount)
         return amount
 
     def payout_to_nodes(self, env: StakingEnvironment, rn: float) -> float:
@@ -172,7 +181,7 @@ class NodeRewardsPool(Account):
         if paid <= 0:
             return 0.0
 
-        self.update_balance(-paid)
+        self.add_to_balance(-paid)
         return paid
 
 
@@ -181,16 +190,18 @@ class StakingRewardsPool(Account):
 
     def __init__(
         self,
+        env: StakingEnvironment = None,
         account_id: str = "0.0.800",
         initial_balance: float = 250.0,
     ):
         super().__init__(account_id, initial_balance)
+        self.env = env
 
     def fund_from_fees(self, amount: float) -> float:
         amount = float(amount)
         if amount <= 0:
             return 0.0
-        self.update_balance(amount)
+        self.add_to_balance(amount)
         return amount
 
     @staticmethod
@@ -211,7 +222,6 @@ class StakingRewardsPool(Account):
 
     def payout_to_stakers(
         self,
-        env: StakingEnvironment,
         rs: float,
         *,
         day: int,
@@ -221,7 +231,7 @@ class StakingRewardsPool(Account):
         rs = float(rs)
         pay_amount = min(rs, self.balance)
 
-        rewards = env.distribute_staker_rewards(
+        rewards = self.env.distribute_staker_rewards(
             pay_amount,
             day=int(day),
             staking_network=staking_network,
@@ -231,17 +241,23 @@ class StakingRewardsPool(Account):
 
         paid = min(paid, pay_amount, self.balance)
 
-        self.update_balance(-paid)
+        self.add_to_balance(-paid)
         return paid
 
 
 class Treasury(Account):
     """Treasury pool analogous to Hedera 0.0.98."""
 
-    def __init__(self, account_id: int | str = "0.0.98", initial_balance: float = 0.0):
+    def __init__(
+        self,
+        account_id: int | str = "0.0.98",
+        initial_balance: float = 0.0,
+        env: StakingEnvironment = None,
+    ):
+        self.env = env
         super().__init__(account_id, initial_balance)
 
     def receive_fees(self, amount: float) -> float:
         amount = float(amount)
-        self.update_balance(amount)
+        self.add_to_balance(amount)
         return amount
