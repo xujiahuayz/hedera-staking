@@ -385,9 +385,7 @@ def main(
         )
 
     print("\n=== END SIMULATION ===")
-    print(
-        f"Treasury {_fmt(treasury.balance)} | 0.0.800 {_fmt(env.staking_pool.balance)} | 0.0.801 {_fmt(node_pool.balance)}"
-    )
+
     return history
 
 
