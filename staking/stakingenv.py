@@ -91,7 +91,7 @@ class StakingEnvironment:
             sid: s.balance for sid, s in self.stakers.items()
         }
         self.balance_nodes_account = {nid: n.balance for nid, n in self.nodes.items()}
-        self.staker_node_stake_map: dict[int, tuple[int, int]] = {}
+        self.stake_map: dict[int, tuple[int, int]] = {}
         self.staking_amount_map: dict[int, float] = {}
         self.rewardable_stake: dict[int, int] = {}
         self.node_payments_info: dict[int, float] = {nid: 0.0 for nid in self.node_ids}
@@ -128,7 +128,7 @@ class StakingEnvironment:
         """
         node_fees = {nid: 0.0 for nid in self.node_ids}
         for sid in range(self.num_stakers):
-            stake_info = self.staker_node_stake_map.get(sid)
+            stake_info = self.stake_map.get(sid)
             if stake_info is None:
                 continue
             nid = int(stake_info[0])
@@ -137,7 +137,7 @@ class StakingEnvironment:
 
         return node_fees
 
-    def build_staker_node_stake_map(
+    def build_stake_map(
         self, day: int | None = None, chosen_node: int | None = None
     ) -> dict[int, tuple[int, int]]:
         """Build staker -> (node, stake) mapping as sid -> (nid, stake_amount)."""
@@ -145,7 +145,7 @@ class StakingEnvironment:
         if chosen_node is not None and chosen_node not in self.node_ids:
             raise ValueError("chosen_node must be a valid node ID in self.agents_node")
 
-        staker_node_stake_map: dict[int, tuple[int, int]] = {}
+        stake_map: dict[int, tuple[int, int]] = {}
 
         for sid in range(self.num_stakers):
             staker = self.stakers[sid]
@@ -153,26 +153,22 @@ class StakingEnvironment:
             if stake_amount <= 0:
                 continue
             nid = staker.choose_node(self.node_ids, chosen_node=chosen_node)
-            staker_node_stake_map[sid] = (int(nid), int(stake_amount))
+            stake_map[sid] = (int(nid), int(stake_amount))
 
-        self.staker_node_stake_map = staker_node_stake_map
-        return staker_node_stake_map
+        self.stake_map = stake_map
+        return stake_map
 
     def update_node_status(
         self,
-        staker_node_stake_map: dict[int, tuple[int, int]] | None = None,
+        stake_map: dict[int, tuple[int, int]] | None = None,
         day: int | None = None,
     ):
         day = self.day if day is None else int(day)
-        staker_node_stake_map = (
-            self.staker_node_stake_map
-            if staker_node_stake_map is None
-            else staker_node_stake_map
-        )
+        stake_map = self.stake_map if stake_map is None else stake_map
 
         staking_amount_map = {nid: 0.0 for nid in self.node_ids}
         for sid in range(self.num_stakers):
-            stake_info = staker_node_stake_map.get(sid)
+            stake_info = stake_map.get(sid)
             if stake_info is None:
                 continue
             nid, stake_amount = stake_info
@@ -222,22 +218,18 @@ class StakingEnvironment:
         self,
         rs: float,
         day: int | None = None,
-        staker_node_stake_map: dict[int, tuple[int, int]] | None = None,
+        stake_map: dict[int, tuple[int, int]] | None = None,
         *,
         rewardable_stake: dict[int, int] | None = None,
     ) -> dict[int, float]:
         day = self.day if day is None else int(day)
-        staker_node_stake_map = (
-            self.staker_node_stake_map
-            if staker_node_stake_map is None
-            else staker_node_stake_map
-        )
+        stake_map = self.stake_map if stake_map is None else stake_map
 
         rs = float(rs)
 
         node_total_stake: dict[int, int] = {}
         for sid in range(self.num_stakers):
-            stake_info = staker_node_stake_map.get(sid)
+            stake_info = stake_map.get(sid)
             if stake_info is None:
                 continue
             nid, w = stake_info
@@ -246,7 +238,7 @@ class StakingEnvironment:
 
         effective: dict[int, int] = {}
         for sid in range(self.num_stakers):
-            stake_info = staker_node_stake_map.get(sid)
+            stake_info = stake_map.get(sid)
             if stake_info is None:
                 continue
             nid, w = stake_info
@@ -296,10 +288,8 @@ class StakingEnvironment:
         }
 
     def step_day(self) -> tuple[float, float]:
-        staker_node_stake_map = self.build_staker_node_stake_map(day=self.day)
-        self.update_node_status(
-            staker_node_stake_map=staker_node_stake_map, day=self.day
-        )
+        stake_map = self.build_stake_map(day=self.day)
+        self.update_node_status(stake_map=stake_map, day=self.day)
 
         network_service_fees = self.calculate_network_service_fees(t=self.day)
         node_fees = self.calculate_node_fees(t=self.day)
@@ -321,7 +311,7 @@ class StakingEnvironment:
         self.staking_pool.payout_to_stakers(
             rs=rs,
             day=self.day,
-            staker_node_stake_map=staker_node_stake_map,
+            stake_map=stake_map,
             rewardable_stake=self.rewardable_stake,
         )
         if self.node_pool is not None:
