@@ -225,7 +225,6 @@ class StakingRewardsPool(Account):
         self,
         rs: float,
         *,
-        day: int,
         stake_map: dict[int, tuple[int, int]],
         rewardable_stake: dict[int, int] | None = None,
     ) -> float:
@@ -234,7 +233,6 @@ class StakingRewardsPool(Account):
 
         rewards = self.env.distribute_staker_rewards(
             pay_amount,
-            day=int(day),
             stake_map=stake_map,
             rewardable_stake=rewardable_stake,
         )
