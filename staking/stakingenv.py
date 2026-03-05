@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 
-import networkx as nx
 import numpy as np
 
 from staking.accounts import (
@@ -92,7 +91,7 @@ class StakingEnvironment:
             sid: s.balance for sid, s in self.stakers.items()
         }
         self.balance_nodes_account = {nid: n.balance for nid, n in self.nodes.items()}
-        self.staking_network: nx.Graph = nx.Graph()
+        self.staking_snapshot: dict[int, tuple[int, int]] = {}
         self.edge_staking: dict[int, float] = {}
         self.rewardable_stake: dict[int, int] = {}
         self.node_payments_info: dict[int, float] = {nid: 0.0 for nid in self.node_ids}
@@ -129,10 +128,10 @@ class StakingEnvironment:
         """
         node_fees = {nid: 0.0 for nid in self.node_ids}
         for sid in range(self.num_stakers):
-            nbrs = list(self.staking_network.neighbors(sid))
-            if len(nbrs) != 1:
+            stake_info = self.staking_snapshot.get(sid)
+            if stake_info is None:
                 continue
-            nid = int(nbrs[0])
+            nid = int(stake_info[0])
             tx_count = self.stakers[sid].simulate_daily_transactions(day=int(t))
             node_fees[nid] += float(tx_count) * self.node_fee_per_tx
 
@@ -140,15 +139,13 @@ class StakingEnvironment:
 
     def snapshot_stakes(
         self, day: int | None = None, chosen_node: int | None = None
-    ) -> nx.Graph:
-        """Snapshot staker -> node stake edges at a given day."""
+    ) -> dict[int, tuple[int, int]]:
+        """Snapshot staker -> node stakes as sid -> (nid, stake_amount)."""
         day = self.day if day is None else int(day)
         if chosen_node is not None and chosen_node not in self.node_ids:
             raise ValueError("chosen_node must be a valid node ID in self.agents_node")
 
-        G = nx.Graph()
-        G.add_nodes_from(range(self.num_stakers), bipartite=0)
-        G.add_nodes_from(self.node_ids, bipartite=1)
+        snapshot: dict[int, tuple[int, int]] = {}
 
         for sid in range(self.num_stakers):
             staker = self.stakers[sid]
@@ -156,23 +153,30 @@ class StakingEnvironment:
             if stake_amount <= 0:
                 continue
             nid = staker.choose_node(self.node_ids, chosen_node=chosen_node)
-            G.add_edge(sid, nid, weight=stake_amount)
+            snapshot[sid] = (int(nid), int(stake_amount))
 
-        self.staking_network = G
-        return G
+        self.staking_snapshot = snapshot
+        return snapshot
 
     def update_node_status(
-        self, staking_network: nx.Graph | None = None, day: int | None = None
+        self,
+        staking_snapshot: dict[int, tuple[int, int]] | None = None,
+        day: int | None = None,
     ):
         day = self.day if day is None else int(day)
-        staking_network = (
-            self.staking_network if staking_network is None else staking_network
+        staking_snapshot = (
+            self.staking_snapshot if staking_snapshot is None else staking_snapshot
         )
 
-        self.edge_staking = {
-            nid: float(staking_network.degree(nid, weight="weight"))
-            for nid in self.node_ids
-        }
+        edge_staking = {nid: 0.0 for nid in self.node_ids}
+        for sid in range(self.num_stakers):
+            stake_info = staking_snapshot.get(sid)
+            if stake_info is None:
+                continue
+            nid, stake_amount = stake_info
+            if stake_amount > 0:
+                edge_staking[int(nid)] += float(stake_amount)
+        self.edge_staking = edge_staking
         self.rewardable_stake = {}
         for nid in self.node_ids:
             node = self.nodes[nid]
@@ -216,34 +220,32 @@ class StakingEnvironment:
         self,
         rs: float,
         day: int | None = None,
-        staking_network: nx.Graph | None = None,
+        staking_snapshot: dict[int, tuple[int, int]] | None = None,
         *,
         rewardable_stake: dict[int, int] | None = None,
     ) -> dict[int, float]:
         day = self.day if day is None else int(day)
-        staking_network = (
-            self.staking_network if staking_network is None else staking_network
+        staking_snapshot = (
+            self.staking_snapshot if staking_snapshot is None else staking_snapshot
         )
 
         rs = float(rs)
 
         node_total_stake: dict[int, int] = {}
         for sid in range(self.num_stakers):
-            nbrs = list(staking_network.neighbors(sid))
-            if len(nbrs) != 1:
+            stake_info = staking_snapshot.get(sid)
+            if stake_info is None:
                 continue
-            nid = nbrs[0]
-            w = int(staking_network[sid][nid].get("weight", 0))
+            nid, w = stake_info
             if w > 0:
                 node_total_stake[nid] = node_total_stake.get(nid, 0) + w
 
         effective: dict[int, int] = {}
         for sid in range(self.num_stakers):
-            nbrs = list(staking_network.neighbors(sid))
-            if len(nbrs) != 1:
+            stake_info = staking_snapshot.get(sid)
+            if stake_info is None:
                 continue
-            nid = nbrs[0]
-            w = int(staking_network[sid][nid].get("weight", 0))
+            nid, w = stake_info
             if w <= 0:
                 continue
 
@@ -290,8 +292,8 @@ class StakingEnvironment:
         }
 
     def step_day(self) -> tuple[float, float]:
-        G = self.snapshot_stakes(day=self.day)
-        self.update_node_status(staking_network=G, day=self.day)
+        staking_snapshot = self.snapshot_stakes(day=self.day)
+        self.update_node_status(staking_snapshot=staking_snapshot, day=self.day)
 
         network_service_fees = self.calculate_network_service_fees(t=self.day)
         node_fees = self.calculate_node_fees(t=self.day)
@@ -313,7 +315,7 @@ class StakingEnvironment:
         self.staking_pool.payout_to_stakers(
             rs=rs,
             day=self.day,
-            staking_network=G,
+            staking_snapshot=staking_snapshot,
             rewardable_stake=self.rewardable_stake,
         )
         if self.node_pool is not None:

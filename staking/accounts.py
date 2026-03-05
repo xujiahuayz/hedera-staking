@@ -14,7 +14,6 @@ And the following subclasses:
 from __future__ import annotations
 
 import numpy as np
-import networkx as nx
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -225,7 +224,7 @@ class StakingRewardsPool(Account):
         rs: float,
         *,
         day: int,
-        staking_network: nx.Graph,
+        staking_snapshot: dict[int, tuple[int, int]],
         rewardable_stake: dict[int, int] | None = None,
     ) -> float:
         rs = float(rs)
@@ -234,7 +233,7 @@ class StakingRewardsPool(Account):
         rewards = self.env.distribute_staker_rewards(
             pay_amount,
             day=int(day),
-            staking_network=staking_network,
+            staking_snapshot=staking_snapshot,
             rewardable_stake=rewardable_stake,
         )
         paid = float(sum(rewards.values()))
