@@ -95,11 +95,13 @@ class Node(Account):
         self.env = env
         super().__init__(account_id, initial_balance)
 
-    def compute_stake(self, num_hbars: int, num_nodes: int, edge_stake: float) -> int:
+    def compute_stake(
+        self, num_hbars: int, num_nodes: int, staked_amount: float
+    ) -> int:
         """Compute this node's rewardable stake using the network caps.
-        edge_stake is the total amount of stakers pointed to this node."""
+        staked_amount is the total amount of stakers pointed to this node."""
         max_stake = float(num_hbars) / float(num_nodes)
-        stake = min(float(edge_stake), max_stake)
+        stake = min(float(staked_amount), max_stake)
         return int(np.floor(max(0.0, stake)))
 
 
@@ -224,7 +226,7 @@ class StakingRewardsPool(Account):
         rs: float,
         *,
         day: int,
-        staking_snapshot: dict[int, tuple[int, int]],
+        staker_node_stake_map: dict[int, tuple[int, int]],
         rewardable_stake: dict[int, int] | None = None,
     ) -> float:
         rs = float(rs)
@@ -233,7 +235,7 @@ class StakingRewardsPool(Account):
         rewards = self.env.distribute_staker_rewards(
             pay_amount,
             day=int(day),
-            staking_snapshot=staking_snapshot,
+            staker_node_stake_map=staker_node_stake_map,
             rewardable_stake=rewardable_stake,
         )
         paid = float(sum(rewards.values()))
